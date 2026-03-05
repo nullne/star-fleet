@@ -8,20 +8,18 @@ import (
 	"os/exec"
 )
 
-type ClaudeBackend struct {
-	Output io.Writer
-}
+type ClaudeBackend struct{}
 
-func (c *ClaudeBackend) Run(ctx context.Context, workdir string, prompt string) error {
+func (c *ClaudeBackend) Run(ctx context.Context, workdir string, prompt string, output io.Writer) error {
 	cmd := exec.CommandContext(ctx, "claude",
 		"-p", prompt,
 		"--dangerously-skip-permissions",
 	)
 	cmd.Dir = workdir
 	var stderr bytes.Buffer
-	if c.Output != nil {
-		cmd.Stdout = c.Output
-		cmd.Stderr = io.MultiWriter(&stderr, c.Output)
+	if output != nil {
+		cmd.Stdout = output
+		cmd.Stderr = io.MultiWriter(&stderr, output)
 	} else {
 		cmd.Stderr = &stderr
 	}

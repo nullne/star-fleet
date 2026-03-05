@@ -68,16 +68,42 @@ func CreatePR(ctx context.Context, repoDir, title, body, base, head string) (*PR
 		"--title", title,
 		"--body", body,
 		"--base", base,
-		"--head", head,
-		"--json", "number,url")
+		"--head", head)
 	if err != nil {
 		return nil, fmt.Errorf("creating PR: %w", err)
 	}
-	var pr PR
-	if err := json.Unmarshal([]byte(out), &pr); err != nil {
-		return nil, fmt.Errorf("parsing PR JSON: %w", err)
+	prURL := strings.TrimSpace(out)
+	parts := strings.Split(prURL, "/")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("unexpected PR URL: %s", prURL)
 	}
-	return &pr, nil
+	num, err := strconv.Atoi(parts[len(parts)-1])
+	if err != nil {
+		return nil, fmt.Errorf("parsing PR number from URL %s: %w", prURL, err)
+	}
+	return &PR{Number: num, URL: prURL}, nil
+}
+
+// FindPR returns an existing open PR for the given head branch, or nil if none exists.
+func FindPR(ctx context.Context, owner, repo, head string) (*PR, error) {
+	nwo := owner + "/" + repo
+	out, err := run(ctx, "", "pr", "list",
+		"--repo", nwo,
+		"--head", head,
+		"--state", "open",
+		"--json", "number,url",
+		"--limit", "1")
+	if err != nil {
+		return nil, fmt.Errorf("listing PRs for %s: %w", head, err)
+	}
+	var prs []PR
+	if err := json.Unmarshal([]byte(out), &prs); err != nil {
+		return nil, fmt.Errorf("parsing PR list: %w", err)
+	}
+	if len(prs) == 0 {
+		return nil, nil
+	}
+	return &prs[0], nil
 }
 
 func PostReviewComment(ctx context.Context, owner, repo string, prNumber int, body string) error {

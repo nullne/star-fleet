@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,8 +16,11 @@ import (
 	"github.com/nullne/star-fleet/internal/gh"
 	"github.com/nullne/star-fleet/internal/git"
 	"github.com/nullne/star-fleet/internal/orchestrator"
+	"github.com/nullne/star-fleet/internal/state"
 	"github.com/nullne/star-fleet/internal/ui"
 )
+
+var restartFlag bool
 
 var runCmd = &cobra.Command{
 	Use:   "run <issue>",
@@ -25,9 +30,17 @@ var runCmd = &cobra.Command{
 Accepts issue references in three formats:
   fleet run 42
   fleet run https://github.com/org/repo/issues/42
-  fleet run org/repo#42`,
+  fleet run org/repo#42
+
+The pipeline automatically saves progress. If a run is interrupted, re-running
+the same command resumes from the last completed phase. Use --restart to discard
+saved state and start fresh.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPipeline,
+}
+
+func init() {
+	runCmd.Flags().BoolVar(&restartFlag, "restart", false, "discard saved state and start the pipeline from scratch")
 }
 
 type issueRef struct {
@@ -88,6 +101,14 @@ func runPipeline(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	restart := restartFlag
+	if !restart {
+		restart, err = promptIfStateExists(repoRoot, ref.Number)
+		if err != nil {
+			return err
+		}
+	}
+
 	display := ui.New()
 
 	o := &orchestrator.Orchestrator{
@@ -97,7 +118,45 @@ func runPipeline(cmd *cobra.Command, args []string) error {
 		Config:   cfg,
 		Display:  display,
 		RepoRoot: repoRoot,
+		Restart:  restart,
 	}
 
 	return o.Run(ctx)
+}
+
+// promptIfStateExists checks for saved pipeline state and asks the user
+// whether to resume or restart. Returns true if the user chooses to restart.
+// In non-interactive environments (piped stdin), defaults to resume (false).
+func promptIfStateExists(repoRoot string, number int) (restart bool, _ error) {
+	s, err := state.Load(repoRoot, number)
+	if err != nil {
+		return false, err
+	}
+	if s == nil || s.Phase == state.PhaseNew || s.Phase == state.PhaseDone {
+		return false, nil
+	}
+
+	if !isInteractive() {
+		return false, nil
+	}
+
+	fmt.Fprintf(os.Stderr, "\n  Previous run found for #%d (stopped at: %s)\n", number, s.Phase)
+	fmt.Fprintf(os.Stderr, "  Resume? [Y/n]: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	answer, _ := reader.ReadString('\n')
+	answer = strings.TrimSpace(strings.ToLower(answer))
+
+	if answer == "n" || answer == "no" {
+		return true, nil
+	}
+	return false, nil
+}
+
+func isInteractive() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
 }

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/nullne/star-fleet/internal/gh"
 )
@@ -17,14 +18,14 @@ type TestAgent struct {
 	BaseBranch string
 }
 
-func (t *TestAgent) Run(ctx context.Context) error {
+func (t *TestAgent) Run(ctx context.Context, output io.Writer) error {
 	prompt := buildTestPrompt(t.Issue)
-	return t.Backend.Run(ctx, t.Workdir, prompt)
+	return t.Backend.Run(ctx, t.Workdir, prompt, output)
 }
 
 func (t *TestAgent) Fix(ctx context.Context, feedback string) error {
 	prompt := buildTestFixPrompt(t.Issue, feedback)
-	return t.Backend.Run(ctx, t.Workdir, prompt)
+	return t.Backend.Run(ctx, t.Workdir, prompt, nil)
 }
 
 func buildTestPrompt(issue *gh.Issue) string {

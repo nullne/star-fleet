@@ -53,8 +53,10 @@ func Load(repoRoot string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config %s: %w", path, err)
 	}
 
-	if cfg.Agent.Backend != "claude-code" && cfg.Agent.Backend != "cursor" {
-		return nil, fmt.Errorf("unsupported agent backend %q (want \"claude-code\" or \"cursor\")", cfg.Agent.Backend)
+	switch cfg.Agent.Backend {
+	case "claude-code", "cursor", "mock":
+	default:
+		return nil, fmt.Errorf("unsupported agent backend %q (want \"claude-code\", \"cursor\", or \"mock\")", cfg.Agent.Backend)
 	}
 
 	return &cfg, nil

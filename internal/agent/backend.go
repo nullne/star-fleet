@@ -3,12 +3,13 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
 
 type Backend interface {
-	Run(ctx context.Context, workdir string, prompt string) error
+	Run(ctx context.Context, workdir string, prompt string, output io.Writer) error
 }
 
 func NewBackend(name string) (Backend, error) {
@@ -17,6 +18,8 @@ func NewBackend(name string) (Backend, error) {
 		return &ClaudeBackend{}, nil
 	case "cursor":
 		return &CursorBackend{}, nil
+	case "mock":
+		return &MockBackend{}, nil
 	default:
 		return nil, fmt.Errorf("unknown backend %q", name)
 	}
@@ -32,7 +35,7 @@ func RunForReview(ctx context.Context, b Backend, workdir, prompt string) (strin
 
 	augmented := prompt + fmt.Sprintf("\n\nIMPORTANT: Write your complete review output to the file %s in the repository root. Do not commit this file.", reviewOutputFile)
 
-	if err := b.Run(ctx, workdir, augmented); err != nil {
+	if err := b.Run(ctx, workdir, augmented, nil); err != nil {
 		return "", err
 	}
 

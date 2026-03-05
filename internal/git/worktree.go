@@ -19,7 +19,10 @@ func CreateWorktree(ctx context.Context, repoRoot, name, branch string) (string,
 	if _, err := runGit(ctx, repoRoot, "worktree", "add", "-b", branch, dir); err != nil {
 		// Branch may already exist from a prior run; try without -b
 		if _, err2 := runGit(ctx, repoRoot, "worktree", "add", dir, branch); err2 != nil {
-			return "", fmt.Errorf("creating worktree %s: %w (also tried existing branch: %v)", name, err, err2)
+			// Branch may be checked out by another worktree; use detached HEAD
+			if _, err3 := runGit(ctx, repoRoot, "worktree", "add", "--detach", dir, branch); err3 != nil {
+				return "", fmt.Errorf("creating worktree %s: %w (also tried existing branch: %v)", name, err, err2)
+			}
 		}
 	}
 	return dir, nil

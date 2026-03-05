@@ -18,6 +18,7 @@ func TestNewBackend(t *testing.T) {
 	}{
 		{"claude-code", false},
 		{"cursor", false},
+		{"mock", false},
 		{"unknown", true},
 		{"", true},
 	}
@@ -201,8 +202,8 @@ func TestClaudeBackendRun(t *testing.T) {
 
 	t.Log("running claude backend...")
 	start := time.Now()
-	backend := &ClaudeBackend{Output: verboseWriter(t)}
-	if err := backend.Run(ctx, workdir, createFilePrompt); err != nil {
+	backend := &ClaudeBackend{}
+	if err := backend.Run(ctx, workdir, createFilePrompt, verboseWriter(t)); err != nil {
 		t.Fatalf("ClaudeBackend.Run() error = %v", err)
 	}
 	t.Logf("claude backend finished in %s", time.Since(start))
@@ -230,8 +231,8 @@ func TestCursorBackendRun(t *testing.T) {
 
 	t.Log("running cursor backend...")
 	start := time.Now()
-	backend := &CursorBackend{Output: verboseWriter(t)}
-	if err := backend.Run(ctx, workdir, createFilePrompt); err != nil {
+	backend := &CursorBackend{}
+	if err := backend.Run(ctx, workdir, createFilePrompt, verboseWriter(t)); err != nil {
 		t.Fatalf("CursorBackend.Run() error = %v", err)
 	}
 	t.Logf("cursor backend finished in %s", time.Since(start))
@@ -244,6 +245,6 @@ type fakeBackend struct {
 	runFunc func(ctx context.Context, workdir string, prompt string) error
 }
 
-func (f *fakeBackend) Run(ctx context.Context, workdir string, prompt string) error {
+func (f *fakeBackend) Run(ctx context.Context, workdir string, prompt string, output io.Writer) error {
 	return f.runFunc(ctx, workdir, prompt)
 }

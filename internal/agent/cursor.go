@@ -8,11 +8,9 @@ import (
 	"os/exec"
 )
 
-type CursorBackend struct {
-	Output io.Writer
-}
+type CursorBackend struct{}
 
-func (c *CursorBackend) Run(ctx context.Context, workdir string, prompt string) error {
+func (c *CursorBackend) Run(ctx context.Context, workdir string, prompt string, output io.Writer) error {
 	cmd := exec.CommandContext(ctx, "cursor",
 		"agent",
 		"-p", prompt,
@@ -20,9 +18,9 @@ func (c *CursorBackend) Run(ctx context.Context, workdir string, prompt string) 
 	)
 	cmd.Dir = workdir
 	var stderr bytes.Buffer
-	if c.Output != nil {
-		cmd.Stdout = c.Output
-		cmd.Stderr = io.MultiWriter(&stderr, c.Output)
+	if output != nil {
+		cmd.Stdout = output
+		cmd.Stderr = io.MultiWriter(&stderr, output)
 	} else {
 		cmd.Stderr = &stderr
 	}
