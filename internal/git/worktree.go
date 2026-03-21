@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/nullne/star-fleet/internal/retry"
 )
 
 func CreateWorktree(ctx context.Context, repoRoot, name, branch string) (string, error) {
@@ -30,7 +32,12 @@ func CreateWorktree(ctx context.Context, repoRoot, name, branch string) (string,
 
 func RemoveWorktree(ctx context.Context, repoRoot, name string) error {
 	dir := filepath.Join(repoRoot, "worktrees", name)
-	_, err := runGit(ctx, repoRoot, "worktree", "remove", dir, "--force")
+	_, _ = runGit(ctx, repoRoot, "worktree", "remove", dir, "--force")
+	return os.RemoveAll(dir)
+}
+
+func PruneWorktrees(ctx context.Context, repoRoot string) error {
+	_, err := runGit(ctx, repoRoot, "worktree", "prune")
 	return err
 }
 
@@ -50,8 +57,10 @@ func Merge(ctx context.Context, dir, branch string) error {
 }
 
 func Push(ctx context.Context, dir, remote, branch string) error {
-	_, err := runGit(ctx, dir, "push", "-u", remote, branch)
-	return err
+	return retry.Do(ctx, func() error {
+		_, err := runGit(ctx, dir, "push", "-u", remote, branch)
+		return err
+	})
 }
 
 func ForcePush(ctx context.Context, dir, remote, branch string) error {
@@ -61,6 +70,14 @@ func ForcePush(ctx context.Context, dir, remote, branch string) error {
 
 func CurrentBranch(ctx context.Context, dir string) (string, error) {
 	out, err := runGit(ctx, dir, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+func CurrentHead(ctx context.Context, dir string) (string, error) {
+	out, err := runGit(ctx, dir, "rev-parse", "HEAD")
 	if err != nil {
 		return "", err
 	}
@@ -120,6 +137,24 @@ func RepoRoot(ctx context.Context) (string, error) {
 
 func DeleteBranch(ctx context.Context, dir, branch string) error {
 	_, err := runGit(ctx, dir, "branch", "-D", branch)
+	return err
+}
+
+func PushDeleteBranch(ctx context.Context, dir, branch string) error {
+	_, err := runGit(ctx, dir, "push", "origin", "--delete", branch)
+	return err
+}
+
+func RemoteBranchExists(ctx context.Context, repoRoot, remote, branch string) (bool, error) {
+	out, err := runGit(ctx, repoRoot, "ls-remote", "--heads", remote, branch)
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
+func DeleteRemoteBranch(ctx context.Context, repoRoot, remote, branch string) error {
+	_, err := runGit(ctx, repoRoot, "push", remote, "--delete", branch)
 	return err
 }
 
