@@ -20,7 +20,13 @@ import (
 	"github.com/nullne/star-fleet/internal/ui"
 )
 
-var restartFlag bool
+var (
+	restartFlag    bool
+	noWatchFlag    bool
+	autoMergeFlag  bool
+	noReviewFlag   bool
+	reviewOnlyFlag bool
+)
 
 var runCmd = &cobra.Command{
 	Use:   "run <issue>",
@@ -34,13 +40,20 @@ Accepts issue references in three formats:
 
 The pipeline automatically saves progress. If a run is interrupted, re-running
 the same command resumes from the last completed phase. Use --restart to discard
-saved state and start fresh.`,
+saved state and start fresh.
+
+After creating a PR, the agent enters a watch loop that responds to review
+comments and CI results. Use --no-watch to skip the watch loop.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPipeline,
 }
 
 func init() {
 	runCmd.Flags().BoolVar(&restartFlag, "restart", false, "discard saved state and start the pipeline from scratch")
+	runCmd.Flags().BoolVar(&noWatchFlag, "no-watch", false, "skip the watch loop after creating the PR")
+	runCmd.Flags().BoolVar(&autoMergeFlag, "auto-merge", false, "automatically squash-merge the PR when CI passes")
+	runCmd.Flags().BoolVar(&noReviewFlag, "no-review", false, "skip the code review phase")
+	runCmd.Flags().BoolVar(&reviewOnlyFlag, "review-only", false, "only run review on existing PR (skip implement phase)")
 }
 
 type issueRef struct {
@@ -109,16 +122,25 @@ func runPipeline(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	autoMerge := cfg.Watch.AutoMerge
+	if cmd.Flags().Changed("auto-merge") {
+		autoMerge = autoMergeFlag
+	}
+
 	display := ui.New()
 
 	o := &orchestrator.Orchestrator{
-		Owner:    ref.Owner,
-		Repo:     ref.Repo,
-		Number:   ref.Number,
-		Config:   cfg,
-		Display:  display,
-		RepoRoot: repoRoot,
-		Restart:  restart,
+		Owner:      ref.Owner,
+		Repo:       ref.Repo,
+		Number:     ref.Number,
+		Config:     cfg,
+		Display:    display,
+		RepoRoot:   repoRoot,
+		Restart:    restart,
+		NoWatch:    noWatchFlag,
+		AutoMerge:  autoMerge,
+		NoReview:   noReviewFlag,
+		ReviewOnly: reviewOnlyFlag,
 	}
 
 	return o.Run(ctx)
